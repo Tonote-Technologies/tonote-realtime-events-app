@@ -120,6 +120,27 @@ io.on("connection", (socket) => {
 			dataChunks[username] = [];
 		}
 	});
+	// socket.on("screenData:start", ({ data, session_id, session_title }) => {
+	//   console.log(dataChunks);
+	//   if (dataChunks[session_title + session_id]) {
+	//     dataChunks[session_title + session_id].push(data);
+	//   } else {
+	//     dataChunks[session_title + session_id] = [data];
+	//   }
+	// });
+
+	// socket.on("screenData:end", ({ session_id, session_title }) => {
+	//   if (
+	//     dataChunks[session_title + session_id] &&
+	//     dataChunks[session_title + session_id].length
+	//   ) {
+	//     saveData(
+	//       dataChunks[session_title + session_id],
+	//       session_title + session_id
+	//     );
+	//     dataChunks[session_title + session_id] = [];
+	//   }
+	// });
 
 	socket.on(events.NOTARY_AVAILABLE, (data) => {
 		socket.to(room).emit(events.NOTARY_AVAILABLE, data);
