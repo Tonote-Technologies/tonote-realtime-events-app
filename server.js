@@ -161,6 +161,13 @@ io.on("connection", (socket) => {
 		// console.log(data);
 		io.emit("UPDATE_DOCUMENT_DISPLAYED", data);
 	});
+
+	socket.on("request_sent", (data) => {
+		const currentTime = new Date().toLocaleTimeString(); // Get current time
+		console.log(`[${currentTime}] A request has been sent`, data);
+		socket.to(room).emit("request_sent", data);
+	});
+
 	socket.on(events.NOTARY_CANCEL_SESSION, () => {
 		socket.to(room).emit(events.NOTARY_CANCEL_SESSION);
 	});
