@@ -157,6 +157,10 @@ io.on("connection", (socket) => {
 	socket.on(events.NOTARY_COMPLETE_SESSION, () => {
 		socket.to(room).emit(events.NOTARY_COMPLETE_SESSION);
 	});
+	socket.on(events.DOC_OWNER_INVITE_PARTICIPANTS, (data) => {
+		socket.to(room).emit(events.DOC_OWNER_INVITE_PARTICIPANTS, data);
+	});
+
 	socket.on("UPDATE_DOCUMENT_DISPLAYED", (data) => {
 		// console.log(data);
 		io.emit("UPDATE_DOCUMENT_DISPLAYED", data);
