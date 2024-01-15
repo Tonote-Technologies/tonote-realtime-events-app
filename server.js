@@ -175,6 +175,9 @@ io.on("connection", (socket) => {
 	socket.on(events.NOTARY_CANCEL_SESSION, () => {
 		socket.to(room).emit(events.NOTARY_CANCEL_SESSION);
 	});
+	socket.on(events.NOTARY_NEW_REQUEST, () => {
+		socket.to(room).emit(events.NOTARY_NEW_REQUEST);
+	});
 	socket.on(events.REMOVE, (data) => {
 		socket.to(room).emit(events.REMOVE, data);
 	});
