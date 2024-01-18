@@ -27,13 +27,7 @@ import apiRoutes from "./routes/apiRoutes.js";
 // import { onConnection } from "./events/onConnection.js";
 import { socketCorsOption } from "./config/corsOptions.js";
 import { saveData } from "./utils/saveData.js";
-import { generatePDFAndSendEmail } from "./utils/generatePDFAndSendEmail.js";
 import { events } from "./utils/constant.js";
-import moment from "moment";
-const dateTime = () => {
-	return moment().format("Do MMM YYYY, h:mm:ss a");
-};
-const date = dateTime();
 
 //constant
 connectDB();
@@ -87,37 +81,66 @@ app.all("*", (req, res) => {
 // socket events
 const socketByUser = {};
 const dataChunks = {};
-const currentTime = new Date().toLocaleTimeString(); // Get current time
 
 io.use((socket, next) => {
-	// console.log(socket.handshake.auth);
-	const { username, token, sessionRoom, sessionTitle } = socket.handshake.auth;
+	const { username } = socket.handshake.auth;
+	const { sessionRoom } = socket.handshake.auth;
 
-	if (!username && !sessionRoom && !token) {
+	if (!username && !sessionRoom) {
 		return next(new Error("invalid username and SessionRoom"));
 	}
-	if (username && sessionRoom && token) {
+	if (username && sessionRoom) {
 		socket.username = username;
-		socket.token = token;
 		socket.sessionRoom = sessionRoom;
-		socket.sessionTitle = sessionTitle;
 		return next();
 	}
 });
 
 io.on("connection", (socket) => {
 	const room = socket.sessionRoom;
-	const username = socket.username;
-	const videoFile = socket.sessionTitle;
-	const userToken = socket.token;
-	// console.log(`User ${username} has joined session titled ${room}.`);
-	console.log(`[${currentTime}] ${username} has joined session.`);
-
+	// const { username } = socket;
 	socket.join(room);
 
 	io.in(room).emit(events.JOIN_ROOM_MESSAGE, {
-		message: `Name:${socket.username} has joined the session, Room:${room}`,
+		message: `Name:${socket.username} has joined the notary session, Room:${room}`,
 	});
+
+	socket.on("screenData:start", ({ data, username }) => {
+		console.log(dataChunks);
+		if (dataChunks[username]) {
+			dataChunks[username].push(data);
+		} else {
+			dataChunks[username] = [data];
+		}
+	});
+
+	socket.on("screenData:end", (username) => {
+		if (dataChunks[username] && dataChunks[username].length) {
+			saveData(dataChunks[username], username);
+			dataChunks[username] = [];
+		}
+	});
+	// socket.on("screenData:start", ({ data, session_id, session_title }) => {
+	//   console.log(dataChunks);
+	//   if (dataChunks[session_title + session_id]) {
+	//     dataChunks[session_title + session_id].push(data);
+	//   } else {
+	//     dataChunks[session_title + session_id] = [data];
+	//   }
+	// });
+
+	// socket.on("screenData:end", ({ session_id, session_title }) => {
+	//   if (
+	//     dataChunks[session_title + session_id] &&
+	//     dataChunks[session_title + session_id].length
+	//   ) {
+	//     saveData(
+	//       dataChunks[session_title + session_id],
+	//       session_title + session_id
+	//     );
+	//     dataChunks[session_title + session_id] = [];
+	//   }
+	// });
 
 	socket.on(events.NOTARY_AVAILABLE, (data) => {
 		socket.to(room).emit(events.NOTARY_AVAILABLE, data);
@@ -131,20 +154,11 @@ io.on("connection", (socket) => {
 	socket.on(events.NOTARY_DELETE_TOOLS, (data) => {
 		socket.to(room).emit(events.NOTARY_DELETE_TOOLS, data);
 	});
-	socket.on(events.DOC_OWNER_INVITE_PARTICIPANTS, (data) => {
-		socket.to(room).emit(events.DOC_OWNER_INVITE_PARTICIPANTS, data);
-	});
 	socket.on(events.NOTARY_COMPLETE_SESSION, () => {
 		socket.to(room).emit(events.NOTARY_COMPLETE_SESSION);
 	});
-	socket.on(events.NOTARY_CANCEL_SESSION, () => {
-		socket.to(room).emit(events.NOTARY_CANCEL_SESSION);
-	});
-	socket.on(events.NOTARY_NEW_REQUEST, () => {
-		socket.to(room).emit(events.NOTARY_NEW_REQUEST);
-	});
-	socket.on(events.REMOVE, (data) => {
-		socket.to(room).emit(events.REMOVE, data);
+	socket.on(events.DOC_OWNER_INVITE_PARTICIPANTS, (data) => {
+		socket.to(room).emit(events.DOC_OWNER_INVITE_PARTICIPANTS, data);
 	});
 
 	socket.on("UPDATE_DOCUMENT_DISPLAYED", (data) => {
@@ -155,74 +169,33 @@ io.on("connection", (socket) => {
 	socket.on("request_sent", (data) => {
 		const currentTime = new Date().toLocaleTimeString(); // Get current time
 		console.log(`[${currentTime}] A request has been sent`, data);
-		io.emit("request_sent", data);
+		socket.to(room).emit("request_sent", data);
 	});
 	socket.on("close_field", (data) => {
 		const currentTime = new Date().toLocaleTimeString(); // Get current time
 		console.log(`[${currentTime}] Field closed`, data);
 		io.emit("close_field", data);
 	});
-
-	socket.on("RECORDING_CHUNK_EVENT", (data) => {
-		console.log("File Received", data);
-		if (dataChunks[username]) {
-			dataChunks[username].push(data);
-		} else {
-			dataChunks[username] = [data];
-		}
-	});
-
-	socket.on("RECORDING_END_EVENT", () => {
-		console.log(
-			`[${new Date().toLocaleString()}] Step 1: File Received from FrontEnd`
-		);
-		if (dataChunks[username] && dataChunks[username].length) {
-			saveData(dataChunks[username], videoFile, room, userToken);
-			dataChunks[username] = [];
-		}
-	});
-
-	socket.on("generate_pdf_send_mail", (data) => {
-		console.log("generate pdf and send mail", data);
-		generatePDFAndSendEmail();
-	});
-
-	socket.on("RECORDING_START_SOUND", () => {
-		io.in(room).emit("RECORDING_START_SOUND");
-	});
-
-	socket.on("RECORDING_STOP_SOUND", () => {
-		io.in(room).emit("RECORDING_STOP_SOUND");
-	});
-
-	socket.on("SHOW_RECORDING_NOTICE", () => {
-		// socket.to(room).emit("SHOW_RECORDING_NOTICE");
-		io.in(room).emit("SHOW_RECORDING_NOTICE");
-	});
-
-	socket.on("SHOW_FEED_BACK", () => {
-		io.in(room).emit("SHOW_FEED_BACK");
-	});
-
 	socket.on("CLOSE_ALL_VIDEO_FIELD", () => {
 		io.in(room).emit("CLOSE_ALL_VIDEO_FIELD");
 		console.log("field closed");
 	});
 
-	socket.on("SHOW_SESSION_TIME_ALERT", () => {
-		io.in(room).emit("SHOW_SESSION_TIME_ALERT");
+	socket.on(events.NOTARY_CANCEL_SESSION, () => {
+		socket.to(room).emit(events.NOTARY_CANCEL_SESSION);
 	});
-
-	// SHOW_SESSION_TIME_ALERT
-
-	socket.on("SHOW_COMPLETE_SESSION_NOTICE", () => {
-		socket.to(room).emit("SHOW_COMPLETE_SESSION_NOTICE");
+	socket.on("NOTARY_NEW_REQUEST", (data) => {
+		// socket.to(room).emit(events.NOTARY_NEW_REQUEST);
+		io.emit("NOTARY_NEW_REQUEST", data);
 	});
-
+	socket.on(events.REMOVE, (data) => {
+		socket.to(room).emit(events.REMOVE, data);
+	});
 	socket.on("disconnect", (reason) => {
-		if (dataChunks[videoFile] && dataChunks[videoFile].length) {
-			saveData(dataChunks[videoFile], videoFile);
-			dataChunks[videoFile] = [];
+		const username = socketByUser[socket.id];
+		if (dataChunks[username] && dataChunks[username].length) {
+			saveData(dataChunks[username], username);
+			dataChunks[username] = [];
 		}
 		if (reason === "io server disconnect") {
 			socket.connect();
@@ -230,10 +203,19 @@ io.on("connection", (socket) => {
 	});
 });
 
-io.on("connection", (socket) => {});
-httpServer.listen(process.env.PORT, () => {
-	console.log("Connected to MongoDB");
-	console.log(`Server running on port ${process.env.PORT}`);
+mongoose.connection.once("open", () => {
+	httpServer.listen(process.env.PORT, () => {
+		console.log("Connected to MongoDB");
+		console.log(`Server running on port ${process.env.PORT}`);
+	});
+});
+
+mongoose.connection.on("error", (err) => {
+	// console.log(err);
+	logEvents(
+		`${err.no}: ${err.code}\t${err.syscall}\t${err.hostname}`,
+		"mongoErrLog.log"
+	);
 });
 
 app.use(errorHandler);
