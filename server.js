@@ -171,6 +171,11 @@ io.on("connection", (socket) => {
 		console.log(`[${currentTime}] A request has been sent`, data);
 		socket.to(room).emit("request_sent", data);
 	});
+	socket.on("close_field", (data) => {
+		const currentTime = new Date().toLocaleTimeString(); // Get current time
+		console.log(`[${currentTime}] Field closed`, data);
+		io.emit("close_field", data);
+	});
 
 	socket.on(events.NOTARY_CANCEL_SESSION, () => {
 		socket.to(room).emit(events.NOTARY_CANCEL_SESSION);
